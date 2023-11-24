@@ -79,7 +79,7 @@ dni_var = tk.StringVar()
 
 # Configurar la entrada para el DNI
 dni_entry = tk.Entry(window, textvariable=dni_var, font=("Arial", 14))
-dni_entry.place(relx=0.92, rely=0.80, anchor=tk.E)
+dni_entry.place(relx=0.92, rely=0.6450, anchor=tk.E)
 
 def procesar_video():
     ret, frame = cap.read()
