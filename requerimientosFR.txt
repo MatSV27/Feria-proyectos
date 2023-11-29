@@ -45,3 +45,5 @@ tk==0.1.0
 tqdm==4.66.1
 typing_extensions==4.8.0
 urllib3==2.1.0
+pywin32==306
+pywhatkit==5.4
