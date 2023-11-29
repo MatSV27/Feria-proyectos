@@ -14,7 +14,7 @@ from datetime import datetime
 import pywhatkit
 
 
-
+# En caso se desee enviar de manera automatica las fotos a numero personalizado, o a numeros
 data = {'id': [1],
         'numero': ['+51991683467'],
         'nombre': ['Contacto 1']}
@@ -67,6 +67,7 @@ fondo_label.place(x=0, y=0, relwidth=1, relheight=1)
 label = tk.Label(window)
 label.place(relx=0.515, rely=0.43, anchor=tk.CENTER)
 
+#Crear variable para la entrada de dni
 dni_var = tk.StringVar()
 
 
@@ -74,30 +75,38 @@ dni_var = tk.StringVar()
 dni_entry = tk.Entry(window, textvariable=dni_var, font=("Arial", 14))
 dni_entry.place(relx=0.91, rely=0.4650, anchor=tk.E)
 
+
+#Crear variable para la entrada de motivo
 Motivo_var = tk.StringVar()
 
 
-# Configurar la entrada para el DNI
+# Configurar la entrada para el Motivo
 Motivo_entry = tk.Entry(window, textvariable=Motivo_var, font=("Arial", 14))
 Motivo_entry.place(relx=0.91, rely=0.6450, anchor=tk.E)
 
+
+# Funcion para limpiar las entradas tras tomar la foto del externo
 def limpiar_entradas():
     dni_var.set("")  # Establecer el valor del DNI en una cadena vacía
     Motivo_var.set("")  # Establecer el valor del Motivo en una cadena vacía
 
-# Cargar las codificaciones faciales y los nombres de las imágenes
+
+# Cargar las codificaciones faciales del modelo previamente entrenado
 with open('category_encodings.pickle', 'rb') as f:
     category_encodings = pickle.load(f)
-
+# Cargar los nombres de las imágenes del modelo previamente entrenado
 with open('category_names.pickle', 'rb') as f:
     category_names = pickle.load(f)
 
-# Inicializar mediapipe
+# Inicializar mediapipe para que pueda "leer" las manos
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
+
+#Crear ruta destino en la cual iran todas las fotos
 ruta_destino = r'C:\\Users\\USER\\Desktop\\Modelo\\FOTOMANO'
 
+# Funcion principal para realizar la toma de video, esta ya tiene los codigos para la prediccion y toma de foto
 def procesar_video():
     ret, frame = cap.read()
     global total_capturas_externas 
@@ -117,12 +126,13 @@ def procesar_video():
             text_bottom = ""
             color = (0, 0, 255)  # Rojo
             accuracy = 0.0
-
+            # Funcion para realizar las predicciones y delimitar los rostros con los boxes y color de acuerdo a la prediccion
             for category, encodings in category_encodings.items():
                 results = face_recognition.compare_faces(encodings, face_frame_encodings, tolerance=0.5)
                 if True in results:
                     # Obtener el nombre del alumno de la carpeta correspondiente
                     alumno_name = category_names[category][results.index(True)]
+                    # Obtener la cercania de cada rostro (lo podemos interpretar como acurracy, pero netamente no es lo mismo.
                     accuracy = face_recognition.face_distance(encodings, face_frame_encodings)[results.index(True)]
                     text_top = f"{category} - {alumno_name}"
                     text_bottom = f"Precisión: {1 + 0.3 - accuracy:.2%}"
@@ -140,7 +150,7 @@ def procesar_video():
                 text_top = "Externo"
                 text_bottom = "Precisión: 100%"
                 color = (0, 0, 255)  # Rojo
-
+           
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
             cv2.putText(frame, text_top, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
             cv2.putText(frame, text_bottom, (left, bottom + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
@@ -174,13 +184,14 @@ def procesar_video():
              nombre_archivo = f"{dni_var.get()}_{formato_fecha_hora}.jpg"
              nombre_ruta = os.path.join(ruta_destino, nombre_archivo)
              capturas_exitosas += 1
-
+       # Tomar la foto y asignarle la ruta (que se definio anteriormente)
              cv2.imwrite(nombre_ruta, frame)
              print(f"Foto tomada y guardada como {nombre_archivo}")
-
+       # Crear la descipcion que ira en el mensaje al enviar la foto al grupo de wspp "Guardias UNI"
              descripcion = f"DNI: {dni_var.get()}, HORA DE INGRESO: {formato_fecha_hora}, MOTIVO: {Motivo_var.get()}"
+       # Enviar la foto con el mensaje al grupo de wspp "Guardias UNI"
              pywhatkit.sendwhats_image(GROUP_ID, nombre_ruta, descripcion, wait_time=20, tab_close=True)
-              # Limpiar las entradas
+       # Limpiar las entradas
              limpiar_entradas()
     # Convertir el cuadro a formato PIL y luego a formato ImageTk
     image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
