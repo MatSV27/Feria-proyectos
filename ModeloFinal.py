@@ -12,9 +12,9 @@ import time
 import pandas as pd
 from datetime import datetime
 import pywhatkit
+import psutil
 
 
-# En caso se desee enviar de manera automatica las fotos a numero personalizado, o a numeros
 data = {'id': [1],
         'numero': ['+51991683467'],
         'nombre': ['Contacto 1']}
@@ -29,10 +29,19 @@ categories = {
     "Trabajador": "C:\\Users\\USER\\Desktop\\Modelo\\Images\\Trabajador"
 }
 # Al inicio del programa
-num_frames_procesados = 0
 capturas_exitosas = 0
 total_capturas_externas = 0
+
+# Inicializar el contador de cuadros procesados
+num_frames_procesados = 0
 start_time = time.time()
+
+def obtener_recursos():
+    cpu_percent = psutil.cpu_percent(interval=None)
+    ram_info = psutil.virtual_memory()
+    ram_percent = ram_info.percent
+    ram_used_gb = ram_info.used / (1024 ** 3)  # Convertir bytes a gigabytes
+    return cpu_percent, ram_percent, ram_used_gb
 
 # Crear la ventana de Tkinter
 window = tk.Tk()
@@ -67,7 +76,6 @@ fondo_label.place(x=0, y=0, relwidth=1, relheight=1)
 label = tk.Label(window)
 label.place(relx=0.515, rely=0.43, anchor=tk.CENTER)
 
-#Crear variable para la entrada de dni
 dni_var = tk.StringVar()
 
 
@@ -75,44 +83,38 @@ dni_var = tk.StringVar()
 dni_entry = tk.Entry(window, textvariable=dni_var, font=("Arial", 14))
 dni_entry.place(relx=0.91, rely=0.4650, anchor=tk.E)
 
-
-#Crear variable para la entrada de motivo
 Motivo_var = tk.StringVar()
 
 
-# Configurar la entrada para el Motivo
+# Configurar la entrada para el DNI
 Motivo_entry = tk.Entry(window, textvariable=Motivo_var, font=("Arial", 14))
 Motivo_entry.place(relx=0.91, rely=0.6450, anchor=tk.E)
 
-
-# Funcion para limpiar las entradas tras tomar la foto del externo
 def limpiar_entradas():
     dni_var.set("")  # Establecer el valor del DNI en una cadena vacía
     Motivo_var.set("")  # Establecer el valor del Motivo en una cadena vacía
 
-
-# Cargar las codificaciones faciales del modelo previamente entrenado
+# Cargar las codificaciones faciales y los nombres de las imágenes
 with open('category_encodings.pickle', 'rb') as f:
     category_encodings = pickle.load(f)
-# Cargar los nombres de las imágenes del modelo previamente entrenado
+
 with open('category_names.pickle', 'rb') as f:
     category_names = pickle.load(f)
 
-# Inicializar mediapipe para que pueda "leer" las manos
+# Inicializar mediapipe
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 mp_drawing = mp.solutions.drawing_utils
-
-#Crear ruta destino en la cual iran todas las fotos
 ruta_destino = r'C:\\Users\\USER\\Desktop\\Modelo\\FOTOMANO'
 
-# Funcion principal para realizar la toma de video, esta ya tiene los codigos para la prediccion y toma de foto
 def procesar_video():
     ret, frame = cap.read()
     global total_capturas_externas 
     global capturas_exitosas
     # Encontrar todas las ubicaciones de rostros en el cuadro actual
     face_locations = face_recognition.face_locations(frame, model="hog")  # Puedes ajustar el modelo aquí
+    # Capturar el tiempo de inicio
+    start_time_frame = time.time()
 
     # Verificar si se detectaron rostros
     if face_locations:
@@ -126,13 +128,12 @@ def procesar_video():
             text_bottom = ""
             color = (0, 0, 255)  # Rojo
             accuracy = 0.0
-            # Funcion para realizar las predicciones y delimitar los rostros con los boxes y color de acuerdo a la prediccion
+
             for category, encodings in category_encodings.items():
                 results = face_recognition.compare_faces(encodings, face_frame_encodings, tolerance=0.5)
                 if True in results:
                     # Obtener el nombre del alumno de la carpeta correspondiente
                     alumno_name = category_names[category][results.index(True)]
-                    # Obtener la cercania de cada rostro (lo podemos interpretar como acurracy, pero netamente no es lo mismo.
                     accuracy = face_recognition.face_distance(encodings, face_frame_encodings)[results.index(True)]
                     text_top = f"{category} - {alumno_name}"
                     text_bottom = f"Precisión: {1 + 0.3 - accuracy:.2%}"
@@ -150,7 +151,7 @@ def procesar_video():
                 text_top = "Externo"
                 text_bottom = "Precisión: 100%"
                 color = (0, 0, 255)  # Rojo
-           
+
             cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
             cv2.putText(frame, text_top, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
             cv2.putText(frame, text_bottom, (left, bottom + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
@@ -184,14 +185,13 @@ def procesar_video():
              nombre_archivo = f"{dni_var.get()}_{formato_fecha_hora}.jpg"
              nombre_ruta = os.path.join(ruta_destino, nombre_archivo)
              capturas_exitosas += 1
-       # Tomar la foto y asignarle la ruta (que se definio anteriormente)
+
              cv2.imwrite(nombre_ruta, frame)
              print(f"Foto tomada y guardada como {nombre_archivo}")
-       # Crear la descipcion que ira en el mensaje al enviar la foto al grupo de wspp "Guardias UNI"
+
              descripcion = f"DNI: {dni_var.get()}, HORA DE INGRESO: {formato_fecha_hora}, MOTIVO: {Motivo_var.get()}"
-       # Enviar la foto con el mensaje al grupo de wspp "Guardias UNI"
              pywhatkit.sendwhats_image(GROUP_ID, nombre_ruta, descripcion, wait_time=20, tab_close=True)
-       # Limpiar las entradas
+              # Limpiar las entradas
              limpiar_entradas()
     # Convertir el cuadro a formato PIL y luego a formato ImageTk
     image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -202,14 +202,21 @@ def procesar_video():
     label.image = photo
 
     window.update_idletasks()
-    # Calcular el tiempo promedio por cuadro
-    end_time = time.time()
-    tiempo_procesamiento_promedio = (end_time - start_time) / num_frames_procesados if num_frames_procesados > 0 else 0
-    print(f"Tiempo de procesamiento promedio por cuadro: {tiempo_procesamiento_promedio} segundos")
+    
+      # Calcular el tiempo promedio por cuadro
+    end_time_frame = time.time()
+    tiempo_procesamiento_frame = end_time_frame - start_time_frame
+    tiempo_procesamiento_promedio = tiempo_procesamiento_frame / num_frames_procesados if num_frames_procesados > 0 else 0
 
-    # Actualizar el tiempo de inicio para el próximo cálculo
-    start_time = time.time()
-    # Llamar a esta función nuevamente después de 15 milisegundos
+    # Obtener el uso de la CPU y la memoria RAM
+    cpu_percent, ram_percent, ram_used_gb = obtener_recursos()
+
+    # Imprimir la información en la consola
+    print(f"FPS: {1 / tiempo_procesamiento_frame:.2f}")
+    print(f"Tiempo de procesamiento promedio por cuadro: {tiempo_procesamiento_promedio:.4f} segundos")
+    print(f"Uso de CPU: {cpu_percent:.2f}%")
+    print(f"Uso de RAM: {ram_percent:.2f}% ({ram_used_gb:.2f} GB)")
+
     window.after(50, procesar_video)
 
 # Iniciar el bucle principal de Tkinter
